@@ -37,6 +37,7 @@ import re
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 PROBLEM_ITEM_RE = re.compile(r"^\s*(?:\d+[.)]|[-*])\s+")
+KP_NUM_RE = re.compile(r"^KP\s*\d+\s*:\s*", re.IGNORECASE)
 LIST_KEYS = ("requires", "tags")
 INT_KEYS = ("minutes",)
 
@@ -124,10 +125,7 @@ def parse_kps(body_lines):
             for title, problems in kps]
 
 
-def parse(path):
-    with open(path) as f:
-        text = f.read()
-    fm_lines, body_lines = split_front_matter(text)
+def parse_meta(fm_lines):
     meta = {}
     for line in fm_lines:
         line = line.rstrip()
@@ -137,6 +135,14 @@ def parse(path):
             raise NodeError("bad front matter line: %r" % line)
         key, _, raw = line.partition(":")
         meta[key.strip()] = _parse_value(key.strip(), raw)
+    return meta
+
+
+def parse(path):
+    with open(path) as f:
+        text = f.read()
+    fm_lines, body_lines = split_front_matter(text)
+    meta = parse_meta(fm_lines)
 
     nid = meta.get("id", "")
     stem = os.path.splitext(os.path.basename(path))[0]
@@ -157,6 +163,108 @@ def parse(path):
         kps=parse_kps(body_lines),
         body="\n".join(body_lines),
     )
+
+
+def _split_sections(body_lines):
+    """Split a node body into (intro_text, [(kp_heading, [kp_body_lines])])."""
+    intro, kps = [], []
+    target = intro
+    for line in body_lines:
+        if line.startswith("## "):
+            kps.append([line[3:].strip(), []])
+            target = kps[-1][1]
+        elif line.startswith("# ") and not kps:
+            continue  # the "# Introduction" heading itself
+        else:
+            target.append(line)
+    return "\n".join(intro).strip(), kps
+
+
+def _extract_worked_and_problems(kp_body):
+    """From one KP's body lines pull (worked_example_text, [problem, ...])."""
+    worked, problems = [], []
+    mode = "worked"
+    current = None
+    for line in kp_body:
+        if line.startswith("### "):
+            head = line[4:].strip().lower()
+            mode = "problems" if head.startswith("problem") else "worked"
+            current = None
+            continue
+        if mode == "problems":
+            if PROBLEM_ITEM_RE.match(line):
+                current = [PROBLEM_ITEM_RE.sub("", line).rstrip()]
+                problems.append(current)
+            elif current is not None and line.strip():
+                current.append(line.strip())
+            elif not line.strip():
+                current = None
+        else:
+            worked.append(line)
+    return ("\n".join(worked).strip(),
+            [" ".join(p) for p in problems])
+
+
+def parse_editable(path):
+    """Parse a node into a structured dict the visual editor round-trips.
+
+    Returns {id, title, requires, minutes, tags, intro,
+             kps: [{name, worked, problems: [str, ...]}, ...]}.
+    The "KP N:" numbering prefix is stripped from names on load and
+    re-applied by render(), so knowledge points stay auto-numbered.
+    """
+    with open(path) as f:
+        text = f.read()
+    fm_lines, body_lines = split_front_matter(text)
+    meta = parse_meta(fm_lines)
+    intro, raw_kps = _split_sections(body_lines)
+    kps = []
+    for heading, kp_body in raw_kps:
+        worked, problems = _extract_worked_and_problems(kp_body)
+        kps.append({"name": KP_NUM_RE.sub("", heading).strip(),
+                    "worked": worked, "problems": problems})
+    return {
+        "id": meta.get("id", ""),
+        "title": meta.get("title", ""),
+        "requires": meta.get("requires", []),
+        "minutes": meta.get("minutes", 0),
+        "tags": meta.get("tags", []),
+        "intro": intro,
+        "kps": kps,
+    }
+
+
+def render(data):
+    """Serialize a structured node dict (see parse_editable) to markdown."""
+    nid = (data.get("id") or "").strip()
+    if not ID_RE.match(nid):
+        raise NodeError("bad id %r (use lowercase letters, digits, -)" % nid)
+    requires = [r.strip() for r in data.get("requires", []) if r.strip()]
+    tags = [t.strip() for t in data.get("tags", []) if t.strip()]
+    minutes = int(data.get("minutes") or 0)
+    out = [
+        "---",
+        "id: %s" % nid,
+        "title: %s" % (data.get("title") or nid).strip(),
+        "requires: [%s]" % ", ".join(requires),
+        "minutes: %d" % minutes,
+        "tags: [%s]" % ", ".join(tags),
+        "---",
+        "",
+        "# Introduction",
+        "",
+        (data.get("intro") or "").strip(),
+    ]
+    for i, kp in enumerate(data.get("kps", []), 1):
+        name = (kp.get("name") or "").strip()
+        heading = "## KP %d: %s" % (i, name) if name else "## KP %d" % i
+        out += ["", heading, "", "### Worked Example", "",
+                (kp.get("worked") or "").strip()]
+        problems = [p.strip() for p in kp.get("problems", []) if p.strip()]
+        if problems:
+            out += ["", "### Problems", ""]
+            out += ["%d. %s" % (n, p) for n, p in enumerate(problems, 1)]
+    return "\n".join(out).rstrip() + "\n"
 
 
 def set_requires(path, requires):

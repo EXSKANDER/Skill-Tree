@@ -19,6 +19,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import actions
+from . import authoring
 from . import graph as graphmod
 from . import node as nodemod
 from . import quiz as quizmod
@@ -249,6 +250,48 @@ def do_goal(root, body):
     return {"daily_goal": cfg["daily_goal"]}
 
 
+# --- authoring ---------------------------------------------------------------
+
+def node_edit_payload(root, g, nid):
+    store.require_graph(root, g)
+    path = os.path.join(store.nodes_dir(root, g), nid + ".md")
+    if not os.path.exists(path):
+        raise ApiError("no such lesson: %s" % nid, 404)
+    data = nodemod.parse_editable(path)
+    data["candidates"] = _prereq_candidates(root, g, exclude=nid)
+    return data
+
+
+def _prereq_candidates(root, g, exclude=None):
+    nodes, _ = graphmod.load(root, g)
+    return [{"id": nid, "title": nodes[nid].title}
+            for nid in sorted(nodes) if nid != exclude]
+
+
+def do_graph_new(root, body):
+    try:
+        return authoring.create_graph(root, body.get("name", ""))
+    except actions.ActionError as e:
+        raise ApiError(str(e))
+
+
+def do_node_save(root, g, body, creating, nid=None):
+    data = dict(body)
+    if nid is not None:
+        data["id"] = nid
+    try:
+        return authoring.save_node(root, g, data, creating=creating)
+    except (actions.ActionError, nodemod.NodeError) as e:
+        raise ApiError(str(e))
+
+
+def do_node_delete(root, g, nid):
+    try:
+        return authoring.delete_node(root, g, nid)
+    except actions.ActionError as e:
+        raise ApiError(str(e))
+
+
 # --- HTTP plumbing -----------------------------------------------------------
 
 class Handler(BaseHTTPRequestHandler):
@@ -336,6 +379,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(quizzes_payload(self.root, parts[1]))
         if len(parts) == 3 and parts[0] == "quiz":
             return self._json(quizmod.load_quiz(self.root, parts[1], parts[2]))
+        if len(parts) == 3 and parts[0] == "node-edit":
+            return self._json(node_edit_payload(self.root, parts[1], parts[2]))
+        if len(parts) == 2 and parts[0] == "candidates":
+            return self._json({"candidates":
+                               _prereq_candidates(self.root, parts[1])})
         raise ApiError("unknown endpoint: %s" % path, 404)
 
     def _api_post(self, path, body):
@@ -350,6 +398,15 @@ class Handler(BaseHTTPRequestHandler):
             return do_review(self.root, parts[1], parts[2], body)
         if parts == ["goal"]:
             return do_goal(self.root, body)
+        if parts == ["graph-new"]:
+            return do_graph_new(self.root, body)
+        if len(parts) == 2 and parts[0] == "node-new":
+            return do_node_save(self.root, parts[1], body, creating=True)
+        if len(parts) == 3 and parts[0] == "node-save":
+            return do_node_save(self.root, parts[1], body, creating=False,
+                                nid=parts[2])
+        if len(parts) == 3 and parts[0] == "node-delete":
+            return do_node_delete(self.root, parts[1], parts[2])
         raise ApiError("unknown endpoint: %s" % path, 404)
 
     # --- static + media ---
