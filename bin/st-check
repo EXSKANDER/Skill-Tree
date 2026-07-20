@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""st-check - validate graph structure (parse errors, bad edges, cycles)."""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import graph as graphmod
+from skilltree import store
+
+
+def check_one(root, g):
+    store.require_graph(root, g)
+    nodes, errors = graphmod.load(root, g)
+    errors += graphmod.check(nodes)
+    progress = store.load_progress(root, g)
+    for nid in progress["nodes"]:
+        if nid not in nodes:
+            print("%s: warning: progress for unknown node %r" % (g, nid),
+                  file=sys.stderr)
+    for e in errors:
+        print("%s: %s" % (g, e), file=sys.stderr)
+    if not errors:
+        print("%s: ok (%d nodes)" % (g, len(nodes)))
+    return not errors
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("graphs", nargs="*",
+                    help="graphs to check (default: all)")
+    args = ap.parse_args()
+    root = store.find_root()
+    targets = args.graphs or store.list_graphs(root)
+    if not targets:
+        store.die("no graphs found")
+    ok = all([check_one(root, g) for g in targets])
+    sys.exit(0 if ok else 1)
+
+
+if __name__ == "__main__":
+    main()

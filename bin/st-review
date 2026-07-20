@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""st-review - grade an ad-hoc review of one learned node (SM-2 update)."""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import graph as graphmod
+from skilltree import quiz as quizmod
+from skilltree import scheduler
+from skilltree import store
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Prefer `st quiz` for day-to-day review: it interleaves due "
+               "topics and applies encompassment. st-review is the primitive "
+               "underneath, for reviewing a single node directly.")
+    ap.add_argument("graph")
+    ap.add_argument("node")
+    ap.add_argument("grade", choices=scheduler.GRADES)
+    args = ap.parse_args()
+
+    root = store.find_root()
+    cfg = store.config(root)
+    nodes = graphmod.load_or_die(root, args.graph)
+    if args.node not in nodes:
+        store.die("no such node: %s" % args.node)
+    progress = store.load_progress(root, args.graph)
+    msgs, gained = quizmod.apply_review(root, args.graph, nodes, progress,
+                                        args.node, args.grade, store.today(),
+                                        cfg)
+    store.save_progress(root, args.graph, progress)
+    for m in msgs:
+        print(m)
+    if gained:
+        print("+%d xp" % gained)
+
+
+if __name__ == "__main__":
+    main()

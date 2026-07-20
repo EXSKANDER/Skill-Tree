@@ -1,0 +1,7 @@
+{
+  "daily_goal": 30,
+  "default_minutes": 20,
+  "encompass": true,
+  "quiz_max": 8,
+  "review_minutes": 2
+}

@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""st-due - list learned nodes whose spaced-repetition review is due."""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import graph as graphmod
+from skilltree import quiz as quizmod
+from skilltree import store
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="output: id<TAB>due-date<TAB>days-overdue<TAB>title; "
+               "most overdue first. Empty output means nothing is due.")
+    ap.add_argument("graph")
+    args = ap.parse_args()
+
+    root = store.find_root()
+    nodes = graphmod.load_or_die(root, args.graph)
+    progress = store.load_progress(root, args.graph)
+    for nid, overdue in quizmod.due_list(nodes, progress, store.today()):
+        srs = progress["nodes"][nid]["srs"]
+        print("%s\t%s\t+%dd\t%s" % (nid, srs["due"], overdue,
+                                    nodes[nid].title))
+
+
+if __name__ == "__main__":
+    main()

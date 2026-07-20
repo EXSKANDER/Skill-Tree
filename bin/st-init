@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""st-init - create a skill-tree root in the current directory."""
+import argparse
+import json
+import os
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import store
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--git", action="store_true",
+                    help="also run `git init` if not already a repository")
+    args = ap.parse_args()
+
+    if os.path.isdir(store.MARKER):
+        store.die("already a skill-tree root")
+    os.makedirs(store.MARKER)
+    store.save_config(os.getcwd(), dict(store.DEFAULT_CONFIG))
+    os.makedirs("graphs", exist_ok=True)
+    os.makedirs("state", exist_ok=True)
+
+    if args.git and not os.path.isdir(".git"):
+        subprocess.run(["git", "init", "-q"], check=True)
+        print("initialized git repository")
+
+    print("initialized skill-tree root in %s" % os.getcwd())
+    print("next: st graph new <name>; st node new <name> <topic-id>")
+
+
+if __name__ == "__main__":
+    main()
