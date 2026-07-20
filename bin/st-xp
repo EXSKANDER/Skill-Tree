@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+"""st-xp - xp totals, daily goal, streak, ledger, manual adjustments."""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import store
+from skilltree import xp
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    sub = ap.add_subparsers(dest="cmd")
+
+    sub.add_parser("show", help="summary (default)")
+
+    p = sub.add_parser("log", help="print recent ledger rows (TSV)")
+    p.add_argument("-n", type=int, default=20, help="rows (default 20)")
+
+    p = sub.add_parser("add", help="manual adjustment (negative = penalty)")
+    p.add_argument("amount", type=int)
+    p.add_argument("note", nargs="+")
+
+    p = sub.add_parser("goal", help="show or set the daily xp goal")
+    p.add_argument("value", type=int, nargs="?")
+
+    args = ap.parse_args()
+    root = store.find_root()
+    cfg = store.config(root)
+    today = store.today()
+
+    if args.cmd in (None, "show"):
+        s = xp.summary(root, cfg, today)
+        print("total\t%d" % s["total"])
+        print("today\t%d / %d goal%s"
+              % (s["today"], s["goal"],
+                 "\t(met)" if s["today"] >= s["goal"] else ""))
+        print("streak\t%d day%s" % (s["streak"],
+                                    "" if s["streak"] == 1 else "s"))
+        for day, amount in s["last7"]:
+            print("%s\t%d\t%s" % (day, amount, "#" * min(amount // 5, 40)))
+
+    elif args.cmd == "log":
+        for e in store.read_ledger(root)[-args.n:]:
+            print("%s\t%s\t%s\t%s\t%+d\t%s"
+                  % (e["at"], e["graph"], e["node"], e["event"], e["xp"],
+                     e["note"]))
+
+    elif args.cmd == "add":
+        note = " ".join(args.note)
+        xp.award(root, "-", None, "manual", args.amount, note)
+        print("recorded %+d xp: %s" % (args.amount, note))
+
+    elif args.cmd == "goal":
+        if args.value is None:
+            print(cfg.get("daily_goal", 30))
+        else:
+            cfg["daily_goal"] = args.value
+            store.save_config(root, cfg)
+            print("daily goal set to %d xp" % args.value)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""st-link - add, remove, and list prerequisite edges."""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import graph as graphmod
+from skilltree import node as nodemod
+from skilltree import store
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="`st link add g topic prereq` means: topic REQUIRES prereq.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("add", help="add prerequisites to a node")
+    p.add_argument("graph")
+    p.add_argument("node")
+    p.add_argument("prereqs", nargs="+")
+
+    p = sub.add_parser("rm", help="remove prerequisites from a node")
+    p.add_argument("graph")
+    p.add_argument("node")
+    p.add_argument("prereqs", nargs="+")
+
+    p = sub.add_parser("list", help="list all edges as: node<TAB>prereq")
+    p.add_argument("graph")
+
+    args = ap.parse_args()
+    root = store.find_root()
+    nodes = graphmod.load_or_die(root, args.graph)
+
+    if args.cmd == "list":
+        for nid in sorted(nodes):
+            for r in nodes[nid].requires:
+                print("%s\t%s" % (nid, r))
+        return
+
+    if args.node not in nodes:
+        store.die("no such node: %s" % args.node)
+    n = nodes[args.node]
+    requires = list(n.requires)
+
+    if args.cmd == "add":
+        for r in args.prereqs:
+            if r == args.node:
+                store.die("a node cannot require itself")
+            if r not in nodes:
+                print("warning: prerequisite %r does not exist yet" % r,
+                      file=sys.stderr)
+            if r not in requires:
+                requires.append(r)
+    else:
+        for r in args.prereqs:
+            if r not in requires:
+                store.die("%s does not require %s" % (args.node, r))
+            requires.remove(r)
+
+    nodemod.set_requires(n.path, requires)
+    nodes = graphmod.load_or_die(root, args.graph)
+    for err in graphmod.check(nodes):
+        print("warning: %s" % err, file=sys.stderr)
+    print("%s requires: [%s]" % (args.node, ", ".join(requires)))
+
+
+if __name__ == "__main__":
+    main()

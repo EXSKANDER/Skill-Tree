@@ -1,0 +1,100 @@
+#!/usr/bin/env python3
+"""st-node - create, list, and inspect topic nodes."""
+import argparse
+import os
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import graph as graphmod
+from skilltree import node as nodemod
+from skilltree import store
+
+
+def node_path(root, g, nid):
+    return os.path.join(store.nodes_dir(root, g), nid + ".md")
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("new", help="scaffold a node file from the template")
+    p.add_argument("graph")
+    p.add_argument("id")
+    p.add_argument("--title", help="default: id in title case")
+    p.add_argument("--requires", default="",
+                   help="comma-separated prerequisite node ids")
+    p.add_argument("--minutes", type=int,
+                   help="estimated focused minutes (= lesson xp)")
+
+    p = sub.add_parser("list", help="list nodes (id, minutes, KPs, problems)")
+    p.add_argument("graph")
+
+    p = sub.add_parser("show", help="print a node's lesson to stdout")
+    p.add_argument("graph")
+    p.add_argument("id")
+
+    p = sub.add_parser("problems", help="list a node's problem ids")
+    p.add_argument("graph")
+    p.add_argument("id")
+
+    p = sub.add_parser("edit", help="open a node in $EDITOR")
+    p.add_argument("graph")
+    p.add_argument("id")
+
+    args = ap.parse_args()
+    root = store.find_root()
+    store.require_graph(root, args.graph)
+
+    if args.cmd == "new":
+        if not nodemod.ID_RE.match(args.id):
+            store.die("bad node id %r (use lowercase letters, digits, -)"
+                      % args.id)
+        path = node_path(root, args.graph, args.id)
+        if os.path.exists(path):
+            store.die("node %s already exists (st node edit %s %s)"
+                      % (args.id, args.graph, args.id))
+        cfg = store.config(root)
+        title = args.title or args.id.replace("-", " ").title()
+        requires = [r.strip() for r in args.requires.split(",") if r.strip()]
+        minutes = args.minutes or int(cfg.get("default_minutes", 20))
+        store.write_atomic(path, nodemod.template(args.id, title, requires,
+                                                  minutes))
+        nodes, _ = graphmod.load(root, args.graph)
+        for r in requires:
+            if r not in nodes:
+                print("warning: prerequisite %r does not exist yet" % r,
+                      file=sys.stderr)
+        print(path)
+        return
+
+    if args.cmd == "list":
+        nodes = graphmod.load_or_die(root, args.graph)
+        for nid in sorted(nodes):
+            n = nodes[nid]
+            print("%s\t%dm\t%d KPs\t%d problems\t%s"
+                  % (nid, n.minutes, len(n.kps), len(n.problem_ids()),
+                     n.title))
+        return
+
+    path = node_path(root, args.graph, args.id)
+    if not os.path.exists(path):
+        store.die("no such node: %s" % args.id)
+
+    if args.cmd == "show":
+        with open(path) as f:
+            sys.stdout.write(f.read())
+    elif args.cmd == "problems":
+        n = nodemod.parse(path)
+        for pid in n.problem_ids():
+            text = n.problem_text(pid)
+            print("%s\t%s" % (pid, text[:70] + ("…" if len(text) > 70 else "")))
+    elif args.cmd == "edit":
+        editor = os.environ.get("EDITOR", "vi")
+        subprocess.run([editor, path])
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""st-sync - commit content and state changes to git."""
+import argparse
+import os
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import store
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Change tracking is plain git; st-sync is only a convenience "
+               "wrapper. Use git directly for history, diffs, and remotes.")
+    ap.add_argument("-m", "--message", help="commit message")
+    args = ap.parse_args()
+
+    root = store.find_root()
+    r = subprocess.run(["git", "-C", root, "rev-parse", "--git-dir"],
+                       capture_output=True)
+    if r.returncode != 0:
+        store.die("root is not a git repository (st init --git, or git init)")
+
+    subprocess.run(["git", "-C", root, "add", "-A",
+                    store.MARKER, "graphs", "state"], check=True)
+    r = subprocess.run(["git", "-C", root, "diff", "--cached", "--quiet"])
+    if r.returncode == 0:
+        print("nothing to commit")
+        return
+    msg = args.message or ("st sync %s" % store.now_stamp())
+    subprocess.run(["git", "-C", root, "commit", "-q", "-m", msg], check=True)
+    subprocess.run(["git", "-C", root, "log", "--oneline", "-1"], check=True)
+
+
+if __name__ == "__main__":
+    main()

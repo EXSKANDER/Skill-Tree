@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""st-status - mastery status of every node: ready | learned | not-ready."""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import graph as graphmod
+from skilltree import store
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="output: id<TAB>status<TAB>next-review<TAB>title")
+    ap.add_argument("graph")
+    ap.add_argument("--only", choices=["ready", "learned", "not-ready"],
+                    help="show only nodes with this status")
+    args = ap.parse_args()
+
+    root = store.find_root()
+    nodes = graphmod.load_or_die(root, args.graph)
+    progress = store.load_progress(root, args.graph)
+    statuses = graphmod.status_of(nodes, progress)
+
+    for nid in sorted(nodes):
+        status = statuses[nid]
+        if args.only and status != args.only:
+            continue
+        srs = progress["nodes"].get(nid, {}).get("srs") or {}
+        due = srs.get("due", "-")
+        print("%s\t%s\t%s\t%s" % (nid, status, due, nodes[nid].title))
+
+
+if __name__ == "__main__":
+    main()

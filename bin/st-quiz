@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""st-quiz - generate and grade interleaved review quizzes."""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import graph as graphmod
+from skilltree import quiz as quizmod
+from skilltree import scheduler
+from skilltree import store
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("new", help="build a quiz from everything due")
+    p.add_argument("graph")
+    p.add_argument("--max", type=int, help="max items (default: config)")
+    p.add_argument("--no-encompass", action="store_true",
+                   help="one item per due node; no implicit-coverage collapse")
+
+    p = sub.add_parser("show", help="print a quiz sheet")
+    p.add_argument("graph")
+    p.add_argument("id")
+
+    p = sub.add_parser("grade", help="grade one quiz item")
+    p.add_argument("graph")
+    p.add_argument("id")
+    p.add_argument("item", type=int)
+    p.add_argument("grade", choices=scheduler.GRADES)
+    p.add_argument("-e", "--evidence", action="append", default=[],
+                   metavar="FILE", help="attach an evidence file (repeatable)")
+
+    p = sub.add_parser("list", help="list quizzes: id, graded/total")
+    p.add_argument("graph")
+
+    args = ap.parse_args()
+    root = store.find_root()
+    cfg = store.config(root)
+    today = store.today()
+    nodes = graphmod.load_or_die(root, args.graph)
+    progress = store.load_progress(root, args.graph)
+
+    if args.cmd == "new":
+        q, sheet = quizmod.make(root, args.graph, nodes, progress, cfg, today,
+                                max_items=args.max,
+                                encompass=False if args.no_encompass else None)
+        if q is None:
+            print(sheet, file=sys.stderr)
+            sys.exit(1)
+        covered = sum(len(i["covers"]) for i in q["items"])
+        print(sheet)
+        if covered:
+            print("(%d due topic%s implicitly covered by these items)"
+                  % (covered, "s" if covered != 1 else ""), file=sys.stderr)
+
+    elif args.cmd == "show":
+        q = quizmod.load_quiz(root, args.graph, args.id)
+        print(quizmod.render_sheet(q))
+
+    elif args.cmd == "grade":
+        q = quizmod.load_quiz(root, args.graph, args.id)
+        if args.evidence:
+            it = next((i for i in q["items"] if i["n"] == args.item), None)
+            if it is None:
+                store.die("quiz %s has no item %d" % (args.id, args.item))
+            for path in store.copy_evidence(root, args.graph, it["node"],
+                                            "quiz-%s-%d" % (args.id,
+                                                            args.item),
+                                            args.evidence):
+                print("evidence stored: %s" % path)
+        msgs = quizmod.grade_item(root, args.graph, nodes, progress, q,
+                                  args.item, args.grade, today, cfg)
+        for m in msgs:
+            print(m)
+
+    elif args.cmd == "list":
+        for qid in quizmod.list_quizzes(root, args.graph):
+            q = quizmod.load_quiz(root, args.graph, qid)
+            graded = sum(1 for i in q["items"] if i["grade"] is not None)
+            print("%s\t%d/%d graded%s" % (qid, graded, len(q["items"]),
+                                          "\tdone" if q["done"] else ""))
+
+
+if __name__ == "__main__":
+    main()

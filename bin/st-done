@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""st-done - complete lesson problems, with optional evidence; learn nodes."""
+import argparse
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import graph as graphmod
+from skilltree import scheduler
+from skilltree import store
+from skilltree import xp
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Evidence can be any file (photo, audio, video, text...). "
+               "For now it is stored as-is and the problem is marked "
+               "complete without verification.")
+    ap.add_argument("graph")
+    ap.add_argument("node")
+    ap.add_argument("problems", nargs="*",
+                    help="problem ids like 1.2 (see `st node problems`)")
+    ap.add_argument("--all", action="store_true",
+                    help="complete every remaining problem of the node")
+    ap.add_argument("-e", "--evidence", action="append", default=[],
+                    metavar="FILE", help="attach an evidence file (repeatable)")
+    ap.add_argument("--note", default="", help="short text note")
+    ap.add_argument("--force", action="store_true",
+                    help="allow completing a node whose prereqs are unlearned")
+    args = ap.parse_args()
+
+    root = store.find_root()
+    cfg = store.config(root)
+    today = store.today()
+    nodes = graphmod.load_or_die(root, args.graph)
+    if args.node not in nodes:
+        store.die("no such node: %s" % args.node)
+    n = nodes[args.node]
+    progress = store.load_progress(root, args.graph)
+    ns = store.node_state(progress, args.node)
+
+    if store.is_learned(progress, args.node):
+        store.die("%s is already learned (use `st review` to review it)"
+                  % args.node)
+    status = graphmod.status_of(nodes, progress)[args.node]
+    if status == "not-ready" and not args.force:
+        missing = [r for r in n.requires
+                   if not store.is_learned(progress, r)]
+        store.die("%s is not ready to learn - unlearned prerequisites: %s "
+                  "(--force to override)" % (args.node, ", ".join(missing)))
+
+    all_pids = n.problem_ids()
+    done = ns.setdefault("problems_done", {})
+    if args.all:
+        targets = [p for p in all_pids if p not in done]
+        if not targets and all_pids:
+            store.die("all problems already complete")
+    elif args.problems:
+        targets = []
+        for p in args.problems:
+            if p not in all_pids:
+                store.die("no such problem %r (available: %s)"
+                          % (p, ", ".join(all_pids) or "none"))
+            if p in done:
+                store.die("problem %s already complete" % p)
+            targets.append(p)
+    elif not all_pids:
+        targets = []  # node with no problems: completing the node itself
+    else:
+        store.die("say which problems (%s), or --all"
+                  % ", ".join(p for p in all_pids if p not in done))
+
+    stored = []
+    if args.evidence:
+        pid = targets[0] if len(targets) == 1 else None
+        stored = store.copy_evidence(root, args.graph, args.node, pid,
+                                     args.evidence)
+        for path in stored:
+            print("evidence stored: %s" % path)
+
+    share, remainder = xp.problem_share(n.minutes, len(all_pids))
+    gained = 0
+    for p in targets:
+        done[p] = {"at": store.now_stamp()}
+        if args.note:
+            done[p]["note"] = args.note
+        if stored:
+            done[p]["evidence"] = stored
+        xp.award(root, args.graph, args.node, "problem", share, p)
+        gained += share
+        print("done: %s %s (+%d xp)" % (args.node, p, share))
+
+    if all(p in done for p in all_pids):
+        ns["learned_at"] = store.now_stamp()
+        ns["srs"] = scheduler.init_srs(today)
+        xp.award(root, args.graph, args.node, "lesson", remainder,
+                 "lesson complete")
+        gained += remainder
+        print("%s learned! first review due %s (+%d xp total)"
+              % (args.node, ns["srs"]["due"], gained))
+        newly = [nid for nid, s in
+                 graphmod.status_of(nodes, progress).items()
+                 if s == "ready" and nid != args.node]
+        unlocked = [nid for nid in newly
+                    if args.node in nodes[nid].requires]
+        if unlocked:
+            print("now ready to learn: %s" % ", ".join(sorted(unlocked)))
+
+    store.save_progress(root, args.graph, progress)
+
+
+if __name__ == "__main__":
+    main()
