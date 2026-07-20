@@ -11,7 +11,7 @@ UNIX tools operating on plain text.
 | Do one thing well | one `st-*` program per job; `st` only dispatches |
 | Text streams as interface | list commands emit TSV; pipe them to `grep`, `awk`, `sort` |
 | Plain-text data | nodes are Markdown, state is JSON, the xp ledger is TSV |
-| No captive interfaces | quizzes are printed sheets, not interactive sessions; grade when done |
+| No captive interfaces | quizzes are printed sheets, not interactive sessions; grade when done. The optional web UI is a *view*, not a lock-in: it writes the same files and adds no state of its own |
 | Leverage existing tools | git *is* the change tracker; `$EDITOR` *is* the content editor; `xdg-open` opens media |
 | Store data in flat files | the whole system is a directory you can `rsync`, diff, and version |
 
@@ -118,6 +118,33 @@ are always recomputed from it, so it is auditable and git-mergeable.
 file into `state/<graph>/evidence/<node>/<problem>/` and records it against
 the completion. For now that is the whole verification story, by design:
 the slot where automated checking will later sit is a single code path.
+
+## The web interface
+
+`st web` (→ `lib/skilltree/web.py` + `lib/skilltree/web/`) is a second
+front-end over the exact same library the CLI drives — not a separate app.
+It is a thin `http.server` (stdlib only) that:
+
+* delegates every action to the shared library — completion goes through
+  `skilltree.actions.complete` (the same code path as `st-done`), quizzes
+  through `skilltree.quiz`, scheduling through `skilltree.scheduler`, so the
+  browser and the terminal can never diverge;
+* binds to `127.0.0.1` and makes no outbound calls; the single-page front-end
+  inlines all its own CSS/JS and ships a hand-rolled ~60-line Markdown
+  renderer, so nothing loads from a CDN and the tool works fully offline;
+* exposes a small JSON API (`/api/dashboard`, `/api/graph/<g>`,
+  `/api/node/<g>/<id>`, `/api/due/<g>`, `/api/quiz*`, `POST /api/done`,
+  `POST /api/review`, `POST /api/goal`) plus `/media/<g>/…` for lesson
+  images, guarded against path traversal;
+* accepts evidence as base64 in the JSON body and stores it through the same
+  `store.copy_evidence` path the CLI uses.
+
+The skill-tree visualisation is computed in the browser: nodes are assigned
+to layers by longest-prerequisite-path depth and drawn as SVG with Bézier
+dependency edges — no graph-layout library, consistent with the
+no-external-dependencies rule. Shipping this as a *view* rather than a
+rewrite is the whole point: delete `web.py` and `web/` and every feature is
+still fully usable from the shell.
 
 ## Deferred features and where they plug in
 
