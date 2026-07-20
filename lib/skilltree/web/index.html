@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill-Tree</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🌳</text></svg>">
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">🌳 Skill-Tree</div>
+    <label class="graph-picker">
+      <span>Graph</span>
+      <select id="graph-select"></select>
+    </label>
+    <nav id="tabs">
+      <button data-view="tree" class="active">Skill Tree</button>
+      <button data-view="lessons">Lessons</button>
+      <button data-view="review">Review</button>
+      <button data-view="progress">Progress</button>
+    </nav>
+    <div id="xp-mini" class="xp-mini"></div>
+  </header>
+
+  <main id="main">
+    <section id="view-tree" class="view active"></section>
+    <section id="view-lessons" class="view"></section>
+    <section id="view-review" class="view"></section>
+    <section id="view-progress" class="view"></section>
+  </main>
+
+  <div id="drawer" class="drawer" aria-hidden="true">
+    <div class="drawer-scrim" data-close></div>
+    <div class="drawer-panel" id="drawer-panel"></div>
+  </div>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

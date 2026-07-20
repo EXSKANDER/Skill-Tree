@@ -38,6 +38,28 @@ st sync -m "today's session"             # git commit content + state
 Start your own tree in any empty directory: `st init --git`, then
 `st graph new <subject>` and `st node new <subject> <topic-id>`.
 
+## Visual interface
+
+Prefer clicking to typing? Launch the local web UI — same files, same logic,
+a browser front-end instead of the terminal:
+
+```sh
+cd example
+st web            # opens http://127.0.0.1:8777 in your browser
+```
+
+It has four views: an interactive **skill tree** (nodes laid out along their
+prerequisites, coloured by status, with review-due badges), a **lessons**
+grid, a per-topic **lesson drawer** (rendered worked examples + a practice
+checklist where you mark problems done and attach evidence files), a
+**review** view (see what's due, generate an interleaved quiz, grade items),
+and a **progress** dashboard (XP totals, streak, daily goal, 7-day chart).
+
+The server is Python-stdlib-only, binds to `127.0.0.1`, makes no outbound
+network calls, and the page bundles all its own CSS/JS — nothing is fetched
+from a CDN. It reads and writes the very same plain files as the `st`
+commands, so you can mix the browser and the terminal freely.
+
 ## Commands
 
 | command | job |
@@ -55,6 +77,7 @@ Start your own tree in any empty directory: `st init --git`, then
 | `st xp` | totals, daily goal, streak, ledger, manual adjustments |
 | `st import` | ingest an LLM-generated node bundle (see docs/PROMPT.md) |
 | `st sync` | convenience `git add + commit` of content and state |
+| `st web` | serve the local browser interface (stdlib only, localhost) |
 
 Every list command emits TSV — compose with `grep`, `awk`, `sort`, `wc`.
 `st status g --only ready` is your current knowledge frontier.
@@ -80,9 +103,10 @@ LLM prompt formula for generating graph regions: [docs/PROMPT.md](docs/PROMPT.md
 ```
 bin/          st dispatcher + one st-* program per job (git-style)
 lib/skilltree Python 3 stdlib-only library shared by the tools
+              (web.py + web/ hold the browser UI: server + self-contained page)
 docs/         DESIGN.md, PROMPT.md
 example/      a ready-made root: arithmetic graph, five lessons
-tests/        smoke.sh - end-to-end test (ST_TODAY/ST_SEED make it deterministic)
+tests/        smoke.sh (CLI) + web-smoke.sh (HTTP API), both deterministic
 ```
 
 Your own learning data lives wherever you ran `st init` — this repo is

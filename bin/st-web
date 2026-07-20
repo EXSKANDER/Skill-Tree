@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""st-web - serve the local browser interface for this skill tree."""
+import argparse
+import os
+import sys
+import threading
+import webbrowser
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                "..", "lib"))
+from skilltree import store
+from skilltree import web
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="A local, dependency-free web UI over the same files the "
+               "CLI uses. Binds to localhost only; stop it with Ctrl-C.")
+    ap.add_argument("--host", default="127.0.0.1",
+                    help="bind address (default 127.0.0.1)")
+    ap.add_argument("--port", type=int, default=8777,
+                    help="port (default 8777)")
+    ap.add_argument("--no-browser", action="store_true",
+                    help="do not open a browser window automatically")
+    ap.add_argument("-v", "--verbose", action="store_true",
+                    help="log every request")
+    args = ap.parse_args()
+
+    root = store.find_root()
+    try:
+        httpd = web.serve(root, host=args.host, port=args.port,
+                          verbose=args.verbose)
+    except OSError as e:
+        store.die("cannot bind %s:%d - %s" % (args.host, args.port, e))
+
+    url = "http://%s:%d/" % (args.host, args.port)
+    print("skill-tree web ui: %s" % url)
+    print("root: %s" % root)
+    print("press Ctrl-C to stop")
+    if not args.no_browser and not os.environ.get("ST_NO_BROWSER"):
+        threading.Timer(0.5, lambda: webbrowser.open(url)).start()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nstopping")
+        httpd.shutdown()
+
+
+if __name__ == "__main__":
+    main()
