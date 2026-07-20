@@ -79,4 +79,45 @@ curl -s -X POST "$B/api/done/demo/c" -H 'Content-Type: application/json' \
   | jpy "d['learned']" | grep -q True || fail "done via web"
 [ -f "$TMP"/state/demo/evidence/c/_node/proof.txt ] || fail "evidence stored"
 
+# --- authoring (visual builder endpoints) -----------------------------------
+# create a fresh subject
+curl -s -X POST "$B/api/graph-new" -H 'Content-Type: application/json' \
+  -d '{"name":"lang"}' | jpy "d['graph']" | grep -q lang || fail "graph-new"
+[ -d "$TMP/graphs/lang/nodes" ] || fail "graph dir created"
+
+# create an entry node with structured content
+curl -s -X POST "$B/api/node-new/lang" -H 'Content-Type: application/json' \
+  -d '{"id":"alpha","title":"Alphabet","minutes":8,"tags":["a1"],"requires":[],"intro":"letters","kps":[{"name":"vowels","worked":"a e i o u","problems":["name a vowel","spell cat"]}]}' \
+  | jpy "d['created']" | grep -q True || fail "node-new"
+[ -f "$TMP/graphs/lang/nodes/alpha.md" ] || fail "node file written"
+
+# it round-trips through the parser (CLI agrees)
+[ "$(st node list lang | wc -l | tr -d ' ')" = 1 ] || fail "authored node not parseable"
+[ "$(st node problems lang alpha | wc -l | tr -d ' ')" = 2 ] || fail "authored problems"
+
+# create a dependent node, then confirm edit-load returns candidates+content
+curl -s -X POST "$B/api/node-new/lang" -H 'Content-Type: application/json' \
+  -d '{"id":"words","title":"Words","requires":["alpha"],"intro":"x","kps":[{"name":"k","worked":"w","problems":["p"]}]}' \
+  | jpy "d['created']" | grep -q True || fail "dependent node-new"
+curl -s "$B/api/node-edit/lang/words" | jpy "d['requires'][0]" | grep -q alpha || fail "edit-load requires"
+curl -s "$B/api/node-edit/lang/words" | jpy "[c['id'] for c in d['candidates']]" | grep -q alpha || fail "edit-load candidates"
+
+# cycle is rejected and reverted
+curl -s -X POST "$B/api/node-save/lang/alpha" -H 'Content-Type: application/json' \
+  -d '{"title":"Alphabet","requires":["words"],"intro":"x","kps":[{"name":"k","worked":"w","problems":["p"]}]}' \
+  | jpy "d.get('error','')" | grep -qi "loop" || fail "cycle not rejected"
+# alpha still has no prereqs after the revert
+curl -s "$B/api/node-edit/lang/alpha" | jpy "len(d['requires'])" | grep -q 0 || fail "cycle not reverted"
+
+# unknown prerequisite rejected
+curl -s -X POST "$B/api/node-new/lang" -H 'Content-Type: application/json' \
+  -d '{"id":"z","title":"Z","requires":["ghost"],"kps":[]}' \
+  | jpy "d.get('error','')" | grep -qi "unknown prerequisite" || fail "unknown prereq not rejected"
+
+# delete unlinks dependents
+curl -s -X POST "$B/api/node-delete/lang/alpha" -H 'Content-Type: application/json' -d '{}' \
+  | jpy "d['unlinked']" | grep -q words || fail "delete unlink"
+[ ! -f "$TMP/graphs/lang/nodes/alpha.md" ] || fail "node not deleted"
+st check lang >/dev/null 2>&1 || fail "graph invalid after delete"
+
 echo PASS

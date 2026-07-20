@@ -139,6 +139,28 @@ It is a thin `http.server` (stdlib only) that:
 * accepts evidence as base64 in the JSON body and stores it through the same
   `store.copy_evidence` path the CLI uses.
 
+### Authoring (the visual builder)
+
+The web UI is also a content editor, not just a learner view — this is the
+primary way the graphs get built. Authoring lives in
+`skilltree.authoring` (`create_graph`, `save_node`, `delete_node`) behind
+`POST /api/graph-new`, `POST /api/node-new/<g>`, `POST /api/node-save/<g>/<id>`,
+`POST /api/node-delete/<g>/<id>`, with `GET /api/node-edit/<g>/<id>` loading
+a node into editable form. Two properties keep it safe and honest:
+
+* **Round-trip fidelity.** `node.parse_editable` decomposes a node file into
+  `{intro, kps:[{name, worked, problems}]}` and `node.render` writes it back
+  in the canonical format, auto-numbering knowledge points (`## KP n:`). A
+  file authored in the browser is byte-for-byte the kind of file you'd write
+  by hand, and an existing hand-written file loads into the editor without
+  loss (verified against the example graph and in `tests/web-smoke.sh`).
+* **The graph can't be corrupted from the UI.** `save_node` rejects unknown
+  prerequisites and self-edges, and after writing it reloads the graph and
+  *reverts the file* if the change introduced a cycle. `delete_node` strips
+  the deleted id from every other node's `requires` and drops its progress
+  entry, so no dangling edges or orphan state remain. The browser and the
+  `st` tools therefore cannot produce a graph the other rejects.
+
 The skill-tree visualisation is computed in the browser: nodes are assigned
 to layers by longest-prerequisite-path depth and drawn as SVG with Bézier
 dependency edges — no graph-layout library, consistent with the

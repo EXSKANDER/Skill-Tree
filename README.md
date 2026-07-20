@@ -1,115 +1,178 @@
 # Skill-Tree
 
-Mastery learning for any subject, the Math Academy way, as a suite of small
-UNIX tools: prerequisite knowledge graphs of hand-written lessons, enforced
-mastery statuses, Anki-formula spaced repetition, interleaved review
-quizzes, proof-of-work evidence, and an xp ledger — all stored as plain
-Markdown/JSON/TSV files and versioned with git.
+**Learn any subject the way Math Academy teaches math.**
 
-No daemon, no database, no dependencies beyond Python 3 and git.
+Skill-Tree helps you master a subject by breaking it into small lessons laid
+out on a map, where each lesson unlocks only once you've learned the ones it
+builds on. *You* build the lessons; Skill-Tree keeps track of what you're
+ready to learn next, quizzes you on the right things at the right time so you
+don't forget, and rewards steady effort with points.
 
-## Install
+It runs entirely on your own computer, in a normal web browser. Nothing is
+sent anywhere — your lessons and your progress are just files on your
+machine.
 
-```sh
-git clone <this repo> && cd Skill-Tree
-export PATH="$PWD/bin:$PATH"        # add to your shell rc to keep it
-sh tests/smoke.sh                   # prints PASS
-```
+![the skill tree](docs/screenshot-tree.png)
 
-## Five-minute tour (using the bundled example)
+## What you can do
 
-```sh
-cd example
-st status arithmetic                     # ready / learned / not-ready
-st node show arithmetic add-two-digit    # read a lesson (pipe to a pager)
-st node problems arithmetic add-two-digit
+- **Build a subject visually.** Add lessons and tick which ones come first —
+  Skill-Tree draws the map. No coding, no editing files by hand.
+- **Write real lessons.** Each lesson is broken into small steps ("knowledge
+  points"), and each step has a worked example plus a few practice problems
+  you write.
+- **Always know what to study.** Every lesson is colour-coded:
+  🟢 learned, 🟠 ready to learn now, ⚪ locked until you finish what comes
+  before it.
+- **Remember what you learn.** Skill-Tree schedules reviews using *spaced
+  repetition* (the idea behind flashcard apps like Anki) and mixes topics
+  together in review quizzes, so knowledge sticks.
+- **Prove you did the work.** Attach a photo, audio clip, video, or file as
+  evidence when you finish a problem.
+- **Stay motivated.** Earn XP (1 point ≈ 1 focused minute), keep a daily
+  streak, and hit a daily goal.
 
-st done arithmetic place-value --all     # complete a lesson's problems
-st done arithmetic add-one-digit 1.1 -e photo-of-my-work.jpg
-st done arithmetic add-one-digit --all   # node -> learned, review scheduled
+## Getting started
 
-st due arithmetic                        # what spaced repetition wants back
-st quiz new arithmetic                   # interleaved review sheet
-st quiz grade arithmetic 2026-07-21-1 1 good
-st xp                                    # totals, daily goal, streak
-st sync -m "today's session"             # git commit content + state
-```
+You need a computer with **Python 3** — it comes pre-installed on almost all
+Linux systems, so you probably already have it. That's the only requirement
+for the app itself.
 
-Start your own tree in any empty directory: `st init --git`, then
-`st graph new <subject>` and `st node new <subject> <topic-id>`.
+1. **Get the files.** Download this project (or `git clone` it) and unzip it
+   somewhere, e.g. a folder called `Skill-Tree`.
 
-## Visual interface
+2. **Open a Terminal in that folder.** (On most Linux desktops: right-click
+   inside the folder → "Open Terminal Here", or open Terminal and
+   `cd` into it.)
 
-Prefer clicking to typing? Launch the local web UI — same files, same logic,
-a browser front-end instead of the terminal:
+3. **Try the built-in example** to see how it all works:
 
-```sh
-cd example
-st web            # opens http://127.0.0.1:8777 in your browser
-```
+   ```sh
+   ./bin/st -C example web
+   ```
 
-It has four views: an interactive **skill tree** (nodes laid out along their
-prerequisites, coloured by status, with review-due badges), a **lessons**
-grid, a per-topic **lesson drawer** (rendered worked examples + a practice
-checklist where you mark problems done and attach evidence files), a
-**review** view (see what's due, generate an interleaved quiz, grade items),
-and a **progress** dashboard (XP totals, streak, daily goal, 7-day chart).
+   Your browser should open automatically. If it doesn't, open it yourself
+   and go to **http://127.0.0.1:8777**. Press `Ctrl-C` in the Terminal to
+   stop the app when you're done.
 
-The server is Python-stdlib-only, binds to `127.0.0.1`, makes no outbound
-network calls, and the page bundles all its own CSS/JS — nothing is fetched
-from a CDN. It reads and writes the very same plain files as the `st`
-commands, so you can mix the browser and the terminal freely.
+4. **Start your own subject.** Make a folder to hold your learning, set it
+   up once, and launch the app pointed at it:
 
-## Commands
+   ```sh
+   mkdir my-learning
+   ./bin/st -C my-learning init
+   ./bin/st -C my-learning web
+   ```
+
+   From now on, just run that last line to open your learning again.
+
+> Tip: if you'd rather type `st` instead of `./bin/st`, run
+> `export PATH="$PWD/bin:$PATH"` in the Terminal first (that shortcut lasts
+> until you close the window).
+
+## Building your first subject
+
+Everything below happens by clicking in the browser.
+
+1. **Create a subject.** Click **➕ New subject** at the top and give it a
+   name (e.g. `spanish`, `music-theory`).
+2. **Add your first lesson.** Click **➕ Add lesson** and fill in the form:
+   - a short **id** (like `note-names`) and a **title**;
+   - a **time estimate** (roughly how many focused minutes it takes — this
+     becomes the lesson's XP);
+   - **prerequisites** — tick the lessons that must be learned first (there
+     are none for your very first lesson);
+   - an **introduction**, then one or more **knowledge points**, each with a
+     **worked example** and a list of **practice problems**.
+
+   Click **Create lesson**.
+3. **Grow the map.** Add more lessons, ticking earlier ones as
+   prerequisites. Skill-Tree draws the arrows for you in the **Skill Tree**
+   view. (It won't let you create an impossible loop.)
+4. **Learn.** Click a 🟠 *ready* lesson, read it, and mark each practice
+   problem done (optionally attaching evidence). When you finish them all,
+   the lesson turns 🟢 *learned* and whatever it unlocks becomes ready.
+5. **Review.** The **Review** tab shows what's due. Click **Generate quiz**
+   for a short, mixed set of problems from different topics; grade how well
+   each went, and Skill-Tree schedules the next review automatically.
+6. **Track progress.** The **Progress** tab shows your total XP, daily
+   streak, goal, and the last week at a glance.
+
+To change or remove a lesson later, open it and use **✎ Edit lesson** or
+**🗑 Delete**.
+
+## Keeping your work safe
+
+Your subject and your progress live inside the folder you created (e.g.
+`my-learning`) as ordinary text files. Back it up like any other folder —
+copy it, sync it to a cloud drive, whatever you already do.
+
+If you're comfortable with **git**, add `--git` when you set up
+(`./bin/st -C my-learning init --git`), and later run
+`./bin/st -C my-learning sync -m "today's work"` to save a snapshot of your
+changes with a note. This is optional.
+
+## Generating lessons with an AI assistant
+
+Writing every lesson by hand is a lot of work. `docs/PROMPT.md` contains a
+ready-made prompt you can give an AI assistant (like Claude or ChatGPT) to
+draft a batch of lessons for one area of your subject, which you then review
+and import. You stay the editor-in-chief — the AI drafts, you approve.
+
+## How it relates to The Math Academy Way
+
+Skill-Tree ports the structure of *The Math Academy Way* — mastery learning
+over a prerequisite graph — to any subject: knowledge graphs, lessons made
+of scaffolded knowledge points, the ready/learned/locked statuses,
+spaced-repetition review, interleaving, remedial review after repeated
+slips, and XP. The adaptive placement exam is intentionally left for later
+(it needs a finished graph first). See `docs/DESIGN.md` for the full
+mapping.
+
+---
+
+## For power users and developers
+
+Skill-Tree is built as a suite of small UNIX tools over plain-text files, so
+everything the browser does is also available from the command line — and
+the browser and the terminal always read and write the same files.
+
+Run `./bin/st help` to list the tools:
 
 | command | job |
 |---|---|
-| `st init` | create a skill-tree root (`--git` to also `git init`) |
-| `st graph new/list` | create / list knowledge graphs |
-| `st node new/list/show/problems/edit` | scaffold and inspect topic nodes |
-| `st link add/rm/list` | edit prerequisite edges (`add g topic prereq`) |
-| `st check` | validate graphs: parse errors, bad edges, cycles |
-| `st status` | every node as `ready` / `learned` / `not-ready` |
-| `st done` | complete lesson problems (`-e file` attaches evidence) |
-| `st due` | learned nodes whose review date has arrived |
-| `st quiz new/show/grade/list` | interleaved, encompassment-aware review |
-| `st review` | grade a single node directly (the primitive under quizzes) |
-| `st xp` | totals, daily goal, streak, ledger, manual adjustments |
-| `st import` | ingest an LLM-generated node bundle (see docs/PROMPT.md) |
-| `st sync` | convenience `git add + commit` of content and state |
-| `st web` | serve the local browser interface (stdlib only, localhost) |
+| `st web` | open the browser interface (this is what most people use) |
+| `st init` | set up a new learning folder (`--git` to also track history) |
+| `st graph` | create / list subjects |
+| `st node` | create, list, show, edit lessons |
+| `st link` | add / remove prerequisite arrows |
+| `st check` | validate a subject (bad links, loops) |
+| `st status` | show every lesson as ready / learned / not-ready |
+| `st done` | mark lesson problems complete (with optional evidence) |
+| `st due` | list lessons due for review |
+| `st quiz` | generate and grade interleaved review quizzes |
+| `st review` | grade a review of a single lesson |
+| `st xp` | totals, daily goal, streak, ledger |
+| `st import` | bulk-import AI-generated lessons (see docs/PROMPT.md) |
+| `st sync` | snapshot your work with git |
 
-Every list command emits TSV — compose with `grep`, `awk`, `sort`, `wc`.
-`st status g --only ready` is your current knowledge frontier.
+Every list command prints tab-separated text you can pipe into `grep`,
+`awk`, or `sort`.
 
-## How it maps to The Math Academy Way
+**Design & data format:** [docs/DESIGN.md](docs/DESIGN.md) ·
+**AI lesson prompt:** [docs/PROMPT.md](docs/PROMPT.md)
 
-| TMAW concept | here |
-|---|---|
-| knowledge graph, prerequisite edges | `graphs/<g>/nodes/*.md`, `requires:` front matter |
-| topic = lesson of scaffolded knowledge points | `##` KP sections: worked example + blocked problems |
-| mastery: not-ready / ready / learned | derived statuses; `st done` refuses not-ready nodes |
-| spaced repetition, widening gaps | Anki 2.1 SM-2 formulas, day granularity (`lib/skilltree/scheduler.py`) |
-| interleaved review, minimal encompassing task set | `st quiz new`: due → encompass-collapse → one problem per node → constraint-shuffled order |
-| remedial review after repeated failure | two consecutive `again` on a node queues its prereqs due-now |
-| xp: 1 xp ≈ 1 focused minute | append-only `state/xp.tsv`; goals, streaks, penalties |
-| diagnostic exam, knowledge frontier | deferred until graphs are complete — plug-in points in docs/DESIGN.md |
-
-Design rationale and data formats: [docs/DESIGN.md](docs/DESIGN.md).
-LLM prompt formula for generating graph regions: [docs/PROMPT.md](docs/PROMPT.md).
-
-## Layout
+### Layout
 
 ```
-bin/          st dispatcher + one st-* program per job (git-style)
-lib/skilltree Python 3 stdlib-only library shared by the tools
-              (web.py + web/ hold the browser UI: server + self-contained page)
+bin/          the st tools (one small program per job)
+lib/skilltree the shared library (Python 3, standard library only)
+              web.py + web/ hold the browser app (server + self-contained page)
 docs/         DESIGN.md, PROMPT.md
-example/      a ready-made root: arithmetic graph, five lessons
-tests/        smoke.sh (CLI) + web-smoke.sh (HTTP API), both deterministic
+example/      a ready-made subject (arithmetic) to explore
+tests/        smoke.sh (command line) + web-smoke.sh (browser server)
 ```
 
-Your own learning data lives wherever you ran `st init` — this repo is
-just the toolset (plus the example). Content (`graphs/`) and personal
-state (`state/`) are separate trees, so courses can be shared without
-sharing progress.
+The whole system is dependency-free (Python standard library only), the web
+app makes no internet connections and bundles all its own code, and your
+content and progress are plain files you fully own.

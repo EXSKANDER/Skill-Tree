@@ -11,8 +11,9 @@
   <header id="topbar">
     <div class="brand">🌳 Skill-Tree</div>
     <label class="graph-picker">
-      <span>Graph</span>
+      <span>Subject</span>
       <select id="graph-select"></select>
+      <button id="new-graph" class="btn ghost sm" title="Create a new subject">+ New subject</button>
     </label>
     <nav id="tabs">
       <button data-view="tree" class="active">Skill Tree</button>
@@ -33,6 +34,11 @@
   <div id="drawer" class="drawer" aria-hidden="true">
     <div class="drawer-scrim" data-close></div>
     <div class="drawer-panel" id="drawer-panel"></div>
+  </div>
+
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-scrim" data-close-modal></div>
+    <div class="modal-box" id="modal-box"></div>
   </div>
 
   <div id="toast" class="toast" aria-live="polite"></div>
